@@ -9,11 +9,15 @@ import math
 import machine
 from picographics import PicoGraphics, DISPLAY_INKY_PACK
 # To Do
-# Get output string from class
-# Maybe remove helicopters?
+# Allow for long and lat being different kms
+# Show message when connecting to network
+# Maybe status dot on display when waiting for HTTP response
+# Full text of aircraft type / origin / destination?
+# Multiple locations. Click buttin to scrill through (and show name for a second on each scroll)
 
 class Flight:
     def __init__(self, flight_id, info):
+        self.id = flight_id
         self.id = flight_id
         self.icao_24bit = info[0]
         self.latitude = info[1]
@@ -34,11 +38,11 @@ class Flight:
         self.callsign = info[16]
         self.airline_icao = info[18]
         # using lat=log for the moment
-        distanceSq = (((self.latitude - piLocation['lat'])**2) + (self.longitude - piLocation['long'])**2)
-        self.distance = math.sqrt(distanceSq)
-
+        self.distanceSq = (((self.latitude - piLocation['lat'])**2) + (self.longitude - piLocation['long'])**2)
+        
 def setup():
     global button_a, button_b, button_c, piLocation, graphics
+
     button_a = machine.Pin(12, machine.Pin.IN, pull=machine.Pin.PULL_UP)
     button_b = machine.Pin(13, machine.Pin.IN, pull=machine.Pin.PULL_UP)
     button_c = machine.Pin(14, machine.Pin.IN, pull=machine.Pin.PULL_UP)
@@ -56,14 +60,15 @@ def buttonPressed(pin):
     global button_a, button_b, button_c
     if pin == button_a:
         print("a")
-        graphics.set_pen(1) # black
-        graphics.pixel(290,160)    
+        graphics.set_pen(15) # black
+        graphics.pixel(295,127)    
     if pin == button_b:
         graphics.set_pen(0) # white
-        graphics.pixel(290,160)    
+        graphics.pixel(295,127)    
     if pin == button_c:
-        pass
-
+        graphics.clear()
+    graphics.update()
+    
 def getNearestFlight():
     width = 0.1 # 0.1
     height = 0.1 #0.1
@@ -78,20 +83,9 @@ def getNearestFlight():
     flightsData = response.json()
     response.close()
     flights = [Flight(flight_id, info) for flight_id, info in flightsData.items()  if flight_id[0] in '01234567890']
-    flights.sort(key=lambda x: x.distance)
+    flights.sort(key=lambda x: x.distanceSq)
     return flights[0]
 
-def getFlightDetails(flightId):
-    # Not called due to OOM error in processing returned JSON
-    url = 'https://data-live.flightradar24.com/clickhandler/?flight=' + flightId
-    headers = {'accept-encoding': '',
-               'user-agent': 'Dummy',
-               'accept': 'application/json'}
-    response  = requests.get(url, headers=headers)
-    flightDetails = response.json()
-    flightTime = flightsDetails['time']['estimated']
-    flightTimeString = time.strftime("%D %H:%M", time.localtime(flightTime))
-    print (flightTimeString)
     
 def writeFlight(flight):
     white = 15
@@ -121,10 +115,8 @@ def writeFlight(flight):
 
     graphics.update()
     
-
-if __name__ == "__main__":
-    setup()
-    while True:
-        f1 = getNearestFlight()
-        writeFlight(f1)
-        time.sleep(1)
+setup()
+while True:
+    f1 = getNearestFlight()
+    writeFlight(f1)
+    time.sleep(1)
